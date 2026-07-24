@@ -155,7 +155,7 @@ These settings are normally managed from the **GRC dashboard → Timer Settings*
 
 ## Support
 
-- **Issues & feature requests:** [github.com/kstecsxpert/tecsxpert-timer](https://github.com/kstecsxpert/tecsxpert-timer)
+- **Issues & feature requests:** [github.com/tecsxpert/tecsxpert-timer](https://github.com/tecsxpert/tecsxpert-timer)
 - **Dashboard & account:** [app.tecsxpert.com](https://app.tecsxpert.com)
 - **Email:** support@tecsxpert.com
 

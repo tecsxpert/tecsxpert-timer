@@ -14,10 +14,10 @@
   },
   "homepage": "https://app.tecsxpert.com",
   "bugs": {
-    "url": "https://github.com/kstecsxpert/tecsxpert-timer/issues",
+    "url": "https://github.com/tecsxpert/tecsxpert-timer/issues",
     "email": "support@tecsxpert.com"
   },
-  "qna": "https://github.com/kstecsxpert/tecsxpert-timer/discussions",
+  "qna": "https://github.com/tecsxpert/tecsxpert-timer/discussions",
   "activationEvents": ["onStartupFinished"],
   "main": "./out/extension.js",
   "contributes": {
