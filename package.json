@@ -1,0 +1,144 @@
+{
+  "name": "tecsxpert-timer",
+  "displayName": "Tecsxpert Timer",
+  "description": "Track coding time per project in VS Code. Sync sessions to the Tecsxpert GRC dashboard and auto-log time to Jira, ClickUp, or Monday.com.",
+  "version": "1.1.0",
+  "publisher": "TecsxpertTechnologiesPvtLtd",
+  "icon": "resources/icon.png",
+  "engines": { "vscode": "^1.85.0" },
+  "categories": ["Other", "Visualization"],
+  "keywords": ["time tracking", "timer", "productivity", "jira", "clickup", "monday", "tecsxpert", "grc", "developer", "team"],
+  "galleryBanner": {
+    "color": "#1e1e2e",
+    "theme": "dark"
+  },
+  "homepage": "https://app.tecsxpert.com",
+  "bugs": {
+    "url": "https://github.com/kstecsxpert/tecsxpert-timer/issues",
+    "email": "support@tecsxpert.com"
+  },
+  "qna": "https://github.com/kstecsxpert/tecsxpert-timer/discussions",
+  "activationEvents": ["onStartupFinished"],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "tecsxpert-timer.start",         "title": "Start Timer",          "category": "Tecsxpert Timer", "icon": "$(play)" },
+      { "command": "tecsxpert-timer.pause",         "title": "Pause Timer",          "category": "Tecsxpert Timer", "icon": "$(debug-pause)" },
+      { "command": "tecsxpert-timer.stop",          "title": "Stop Timer",           "category": "Tecsxpert Timer", "icon": "$(debug-stop)" },
+      { "command": "tecsxpert-timer.openDashboard", "title": "Open Dashboard",       "category": "Tecsxpert Timer", "icon": "$(graph)" },
+      { "command": "tecsxpert-timer.switchProject", "title": "Switch Project",       "category": "Tecsxpert Timer", "icon": "$(list-selection)" },
+      { "command": "tecsxpert-timer.setApiKey",     "title": "Set API Key",          "category": "Tecsxpert Timer", "icon": "$(key)" },
+      { "command": "tecsxpert-timer.syncNow",       "title": "Sync to Tecsxpert",   "category": "Tecsxpert Timer", "icon": "$(cloud-upload)" },
+      { "command": "tecsxpert-timer.linkTask",      "title": "Link to Task",         "category": "Tecsxpert Timer", "icon": "$(link)" },
+      { "command": "tecsxpert-timer.unlinkTask",    "title": "Unlink Task",          "category": "Tecsxpert Timer", "icon": "$(link-external)" },
+      { "command": "tecsxpert-timer.setupJira",     "title": "Connect Jira",         "category": "Tecsxpert Timer", "icon": "$(plug)" },
+      { "command": "tecsxpert-timer.setupClickUp",  "title": "Connect ClickUp",      "category": "Tecsxpert Timer", "icon": "$(plug)" },
+      { "command": "tecsxpert-timer.setupMonday",   "title": "Connect Monday.com",   "category": "Tecsxpert Timer", "icon": "$(plug)" }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "tecsxpert-timer",
+          "title": "Tecsxpert Timer",
+          "icon": "resources/activity-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "tecsxpert-timer": [
+        {
+          "type": "webview",
+          "id": "tecsxpert-timer.sidebar",
+          "name": "Timer",
+          "icon": "resources/activity-icon.svg"
+        }
+      ]
+    },
+    "menus": {
+      "view/title": [
+        {
+          "command": "tecsxpert-timer.openDashboard",
+          "when": "view == tecsxpert-timer.sidebar",
+          "group": "navigation"
+        },
+        {
+          "command": "tecsxpert-timer.syncNow",
+          "when": "view == tecsxpert-timer.sidebar",
+          "group": "navigation"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Tecsxpert Timer",
+      "properties": {
+        "tecsxpert-timer.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "Your Tecsxpert API key (get it from Settings → API Keys in your GRC dashboard)"
+        },
+        "tecsxpert-timer.apiUrl": {
+          "type": "string",
+          "default": "https://api.tecsxpert.com",
+          "description": "Tecsxpert API base URL"
+        },
+        "tecsxpert-timer.idleThresholdMinutes": {
+          "type": "number",
+          "default": 0,
+          "description": "Pause timer automatically after this many minutes of inactivity (0 = disabled). Configure from the GRC dashboard Timer Settings tab."
+        },
+        "tecsxpert-timer.dailyGoalMinutes": {
+          "type": "number",
+          "default": 480,
+          "description": "Daily coding goal in minutes (default: 8 hours). Configure from the GRC dashboard Timer Settings tab."
+        },
+        "tecsxpert-timer.autoStart": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically start the timer per project when a workspace is opened. Configure from the GRC dashboard Timer Settings tab."
+        },
+        "tecsxpert-timer.showInStatusBar": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show timer in the status bar."
+        },
+        "tecsxpert-timer.syncIntervalMinutes": {
+          "type": "number",
+          "default": 5,
+          "description": "How often to attempt syncing sessions to the Tecsxpert API (minutes)."
+        },
+        "tecsxpert-timer.integrations.jira.domain": {
+          "type": "string",
+          "default": "",
+          "description": "Jira domain (without .atlassian.net, e.g. mycompany)"
+        },
+        "tecsxpert-timer.integrations.jira.email": {
+          "type": "string",
+          "default": "",
+          "description": "Atlassian account email for Jira API authentication"
+        },
+        "tecsxpert-timer.integrations.clickup.workspaceId": {
+          "type": "string",
+          "default": "",
+          "description": "ClickUp workspace ID (auto-detected on first use)"
+        },
+        "tecsxpert-timer.integrations.monday.boardId": {
+          "type": "string",
+          "default": "",
+          "description": "Monday.com board ID (auto-detected on first use)"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^2.22.0",
+    "typescript": "^5.3.0"
+  }
+}

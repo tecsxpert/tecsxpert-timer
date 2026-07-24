@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Clock circle -->
+  <circle cx="12" cy="12" r="9"/>
+  <!-- Clock hands -->
+  <polyline points="12,7 12,12 15.5,14"/>
+  <!-- Small accent dot at 12 -->
+  <circle cx="12" cy="3.5" r="0.8" fill="currentColor" stroke="none"/>
+</svg>
