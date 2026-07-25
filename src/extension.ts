@@ -17,7 +17,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
   const integrations = new IntegrationManager(ctx.secrets);
 
   // ── Sidebar ───────────────────────────────────────────────────────────────
-  const sidebar = new SidebarProvider(timer, storage, ctx);
+  const sidebar = new SidebarProvider(timer, storage, ctx, api);
   ctx.subscriptions.push(
     vscode.window.registerWebviewViewProvider('tecsxpert-timer.sidebar', sidebar)
   );
@@ -90,6 +90,7 @@ export function activate(ctx: vscode.ExtensionContext): void {
       await vscode.workspace.getConfiguration('tecsxpert-timer').update('apiKey', key, vscode.ConfigurationTarget.Global);
       vscode.window.showInformationMessage(key ? 'API key saved. Syncing…' : 'API key cleared.');
       if (key) { scheduleImmediateSync(api, storage); }
+      sidebar.refreshAccount();
     }),
 
     vscode.commands.registerCommand('tecsxpert-timer.syncNow', async () => {

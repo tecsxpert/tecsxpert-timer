@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { TimerManager } from './TimerManager';
 import { StorageManager } from './StorageManager';
+import { ApiClient } from './ApiClient';
 import { TimerStatus, ProjectStats, LinkedTask } from './types';
 
 const PROJECT_COLORS = [
@@ -71,6 +72,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     private readonly timer: TimerManager,
     private readonly storage: StorageManager,
     private readonly ctx: vscode.ExtensionContext,
+    private readonly api: ApiClient,
   ) {
     timer.on('tick', (s: TimerStatus) => { this.lastStatus = s; this.pushUpdate(s); });
     timer.on('statusChanged', (s: TimerStatus) => { this.lastStatus = s; this.pushUpdate(s); });
@@ -92,7 +94,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         case 'sync':       vscode.commands.executeCommand('tecsxpert-timer.syncNow'); break;
         case 'linkTask':   vscode.commands.executeCommand('tecsxpert-timer.linkTask'); break;
         case 'unlinkTask': vscode.commands.executeCommand('tecsxpert-timer.unlinkTask'); break;
-        case 'ready':   this.pushUpdate(this.lastStatus); this.pushStats(); break;
+        case 'setApiKey':  vscode.commands.executeCommand('tecsxpert-timer.setApiKey'); break;
+        case 'ready':
+          this.pushUpdate(this.lastStatus);
+          this.pushStats();
+          this.refreshAccount();
+          break;
       }
     });
   }
@@ -109,6 +116,19 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const projects = computeProjectStats(this.storage);
     const today = this.storage.getTodaySessions();
     this.view?.webview.postMessage({ type: 'stats', projects, today });
+  }
+
+  refreshAccount(): void {
+    const configured = this.api.isConfigured();
+    if (!configured) {
+      this.view?.webview.postMessage({ type: 'account', connected: false });
+      return;
+    }
+    this.api.getMe().then(user => {
+      this.view?.webview.postMessage({ type: 'account', connected: !!user, name: user?.name, email: user?.email });
+    }).catch(() => {
+      this.view?.webview.postMessage({ type: 'account', connected: false });
+    });
   }
 
   private html(): string {
@@ -461,6 +481,27 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   .session-color { width: 3px; height: 28px; border-radius: 99px; flex-shrink: 0; }
   .session-info { flex: 1; min-width: 0; }
   .session-project { font-size: 11.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .account-card {
+    margin: 0 12px 10px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 9px 12px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .account-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    background: var(--red);
+  }
+  .account-dot.connected { background: var(--green); }
+  .account-info { flex: 1; min-width: 0; }
+  .account-name { font-size: 11.5px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .account-email { font-size: 10px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .account-action { font-size: 10px; color: var(--brand); cursor: pointer; text-decoration: none; white-space: nowrap; flex-shrink: 0; background: none; border: none; padding: 0; }
+  .account-action:hover { text-decoration: underline; }
   .session-time { font-size: 10.5px; color: var(--text-muted); margin-top: 1px; }
   .session-duration {
     font-size: 11px;
@@ -639,6 +680,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
   </div>
 </div>
 
+<!-- Account -->
+<div class="account-card" id="accountCard">
+  <div class="account-dot" id="accountDot"></div>
+  <div class="account-info">
+    <div class="account-name" id="accountName">Not connected</div>
+    <div class="account-email" id="accountEmail">Set your API key to connect</div>
+  </div>
+  <button class="account-action" id="accountAction" onclick="post('setApiKey')">Set Key</button>
+</div>
+
 <!-- Footer -->
 <div class="footer">
   <button class="btn btn-secondary" onclick="post('dashboard')">
@@ -796,11 +847,30 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     document.getElementById('linkedTaskTitle').textContent = task.taskTitle;
   }
 
+  function applyAccount(msg) {
+    const dot    = document.getElementById('accountDot');
+    const name   = document.getElementById('accountName');
+    const email  = document.getElementById('accountEmail');
+    const action = document.getElementById('accountAction');
+    if (msg.connected) {
+      dot.className = 'account-dot connected';
+      name.textContent  = msg.name  || 'Connected';
+      email.textContent = msg.email || 'Tecsxpert GRC';
+      action.textContent = 'Change';
+    } else {
+      dot.className = 'account-dot';
+      name.textContent  = 'Not connected';
+      email.textContent = 'Set your API key to connect';
+      action.textContent = 'Set Key';
+    }
+  }
+
   window.addEventListener('message', e => {
     const msg = e.data;
     if (msg.type === 'status')     { applyStatus(msg.status); }
     if (msg.type === 'stats')      { applyStats(msg.projects, msg.today); }
     if (msg.type === 'linkedTask') { applyLinkedTask(msg.task); }
+    if (msg.type === 'account')    { applyAccount(msg); }
   });
 
   post('ready');

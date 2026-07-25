@@ -93,4 +93,16 @@ export class ApiClient {
       return false;
     }
   }
+
+  async getMe(): Promise<{ name: string; email: string } | null> {
+    if (!this.isConfigured()) { return null; }
+    try {
+      const res = await this.request<{ data?: { name?: string; email?: string }; user?: { name?: string; email?: string } }>('GET', '/api/auth/me');
+      const u = res.data || res.user;
+      if (u?.name || u?.email) { return { name: u.name || '', email: u.email || '' }; }
+      return null;
+    } catch {
+      return null;
+    }
+  }
 }
