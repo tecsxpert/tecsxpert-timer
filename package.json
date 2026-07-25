@@ -2,7 +2,7 @@
   "name": "tecsxpert-timer",
   "displayName": "Tecsxpert Timer",
   "description": "Track coding time per project in VS Code. Sync sessions to the Tecsxpert GRC dashboard and auto-log time to Jira, ClickUp, or Monday.com.",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "publisher": "TecsxpertTechnologiesPvtLtd",
   "icon": "resources/icon.png",
   "engines": { "vscode": "^1.85.0" },
