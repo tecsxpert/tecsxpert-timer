@@ -5,6 +5,22 @@ import { Session, RemoteConfig } from './types';
 
 function cfg() { return vscode.workspace.getConfiguration('tecsxpert-timer'); }
 
+function parseGrcKey(raw: string): { tenantId: string | null; sanctumToken: string } {
+  if (raw.startsWith('grc_v1_')) {
+    const rest = raw.slice('grc_v1_'.length);
+    const sep = rest.indexOf('_');
+    if (sep !== -1) {
+      const b64 = rest.slice(0, sep);
+      const token = rest.slice(sep + 1);
+      try {
+        const tenantId = Buffer.from(b64, 'base64').toString('utf8');
+        return { tenantId, sanctumToken: token };
+      } catch { /* fall through */ }
+    }
+  }
+  return { tenantId: null, sanctumToken: raw };
+}
+
 export class ApiClient {
   private get apiKey(): string { return cfg().get<string>('apiKey', ''); }
   private get baseUrl(): string { return cfg().get<string>('apiUrl', 'https://api.tecsxpert.com'); }
@@ -14,14 +30,16 @@ export class ApiClient {
       const url = new URL(this.baseUrl + path);
       const isHttps = url.protocol === 'https:';
       const payload = body ? JSON.stringify(body) : undefined;
+      const { tenantId, sanctumToken } = parseGrcKey(this.apiKey);
       const opts: http.RequestOptions = {
         hostname: url.hostname,
         port: url.port || (isHttps ? 443 : 80),
         path: url.pathname + url.search,
         method,
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
+          'Authorization': `Bearer ${sanctumToken}`,
           'Content-Type': 'application/json',
+          ...(tenantId ? { 'X-Tenant-ID': tenantId } : {}),
           ...(payload ? { 'Content-Length': Buffer.byteLength(payload) } : {}),
         },
         timeout: 10000,
