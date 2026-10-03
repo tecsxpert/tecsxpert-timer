@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { EventEmitter } from 'events';
-import { Session, TimerState, TimerStatus, LinkedTask } from './types';
+import { Session, TimerState, TimerStatus, LinkedTask, GitContext } from './types';
 import { StorageManager } from './StorageManager';
 
 // Simple UUID without external dependency
@@ -64,7 +64,7 @@ export class TimerManager extends EventEmitter {
     this.emit('statusChanged', this.getStatus());
   }
 
-  stop(): void {
+  stop(extras?: { controlIds?: string[]; consentGiven?: boolean }): void {
     if (this.state === 'idle') { return; }
     const duration = this.state === 'running'
       ? Date.now() - this.sessionStart
@@ -80,6 +80,9 @@ export class TimerManager extends EventEmitter {
         duration,
         synced: false,
         linkedTask: this.linkedTask,
+        gitContext: this.captureGitContext(),
+        controlIds: extras?.controlIds,
+        consentGiven: extras?.consentGiven,
       };
       this.storage.addSession(session);
       this.emit('sessionSaved', session);
@@ -90,6 +93,29 @@ export class TimerManager extends EventEmitter {
     this.accumulatedMs = 0;
     this.stopTick();
     this.emit('statusChanged', this.getStatus());
+  }
+
+  private captureGitContext(): GitContext | undefined {
+    try {
+      const gitExt = vscode.extensions.getExtension<any>('vscode.git');
+      if (!gitExt?.isActive) { return undefined; }
+      const api = gitExt.exports?.getAPI(1);
+      if (!api || !api.repositories?.length) { return undefined; }
+      const wsSafe = this.workspacePath.toLowerCase();
+      const repo = api.repositories.find((r: any) =>
+        r.rootUri?.fsPath?.toLowerCase() === wsSafe
+      ) ?? api.repositories[0];
+      const head = repo.state?.HEAD;
+      const remote = repo.state?.remotes?.[0];
+      return {
+        commitHash: (head?.commit as string | undefined)?.slice(0, 12),
+        branch: head?.name as string | undefined,
+        repoUrl: (remote?.fetchUrl || remote?.pushUrl) as string | undefined,
+        isDirty: !!(repo.state?.workingTreeChanges?.length || repo.state?.indexChanges?.length),
+      };
+    } catch {
+      return undefined;
+    }
   }
 
   getStatus(): TimerStatus {

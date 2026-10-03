@@ -9,17 +9,28 @@ export interface LinkedTask {
   url?: string;
 }
 
+export interface GitContext {
+  commitHash?: string;   // short 12-char SHA
+  branch?: string;
+  repoUrl?: string;
+  isDirty?: boolean;     // uncommitted changes at session end
+}
+
 export interface Session {
   id: string;
   projectName: string;
   workspacePath: string;
-  startTime: number;   // Unix ms
-  endTime: number;     // Unix ms
-  duration: number;    // ms
+  startTime: number;     // Unix ms (client-side clock)
+  endTime: number;       // Unix ms (client-side clock)
+  duration: number;      // ms
   synced: boolean;
   note?: string;
   linkedTask?: LinkedTask;
   timeLogged?: boolean;
+  // GRC audit fields
+  gitContext?: GitContext;
+  controlIds?: string[];
+  consentGiven?: boolean;
 }
 
 export interface ProjectStats {

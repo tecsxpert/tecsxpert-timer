@@ -9,6 +9,71 @@ import { IntegrationManager } from './integrations/IntegrationManager';
 
 let syncTimer: ReturnType<typeof setInterval> | undefined;
 
+// ── GRC Control library (curated set per framework) ───────────────────────────
+
+const GRC_CONTROLS: vscode.QuickPickItem[] = [
+  { label: 'ISO 27001:2022',      kind: vscode.QuickPickItemKind.Separator },
+  { label: 'ISO27001-A8.8',        description: 'Management of technical vulnerabilities' },
+  { label: 'ISO27001-A12.1',       description: 'Operational procedures and responsibilities' },
+  { label: 'ISO27001-A14.2',       description: 'Security in development and support processes' },
+  { label: 'ISO27001-A15.1',       description: 'Supplier relationship information security' },
+  { label: 'ISO27001-A18.1',       description: 'Compliance with legal and contractual requirements' },
+  { label: 'SOC 2',               kind: vscode.QuickPickItemKind.Separator },
+  { label: 'SOC2-CC6.1',          description: 'Logical and physical access controls' },
+  { label: 'SOC2-CC7.2',          description: 'System monitoring' },
+  { label: 'SOC2-CC8.1',          description: 'Change management' },
+  { label: 'SOC2-CC9.1',          description: 'Risk mitigation' },
+  { label: 'NIST CSF 2.0',        kind: vscode.QuickPickItemKind.Separator },
+  { label: 'NIST-GV.OC',          description: 'Organizational Context' },
+  { label: 'NIST-PR.AT',          description: 'Awareness and Training' },
+  { label: 'NIST-PR.IP',          description: 'Information Protection Processes' },
+  { label: 'NIST-DE.CM',          description: 'Continuous Monitoring' },
+  { label: 'NIST-RS.AN',          description: 'Incident Analysis' },
+  { label: 'GDPR',                kind: vscode.QuickPickItemKind.Separator },
+  { label: 'GDPR-Art25',          description: 'Data protection by design and by default' },
+  { label: 'GDPR-Art32',          description: 'Security of processing' },
+  { label: 'GDPR-Art33',          description: 'Notification of personal data breach' },
+  { label: 'DPDP Act 2023',       kind: vscode.QuickPickItemKind.Separator },
+  { label: 'DPDP-S8',             description: 'General obligations of Data Fiduciary' },
+  { label: 'DPDP-S11',            description: 'Right to information about personal data' },
+  { label: 'DPDP-S13',            description: 'Obligations on personal data breach' },
+  { label: 'PCI-DSS v4.0',        kind: vscode.QuickPickItemKind.Separator },
+  { label: 'PCIDSS-6.3',          description: 'Security vulnerabilities identified and addressed' },
+  { label: 'PCIDSS-6.4',          description: 'Public-facing web applications protected' },
+  { label: 'PCIDSS-8.2',          description: 'User identification and authentication' },
+  { label: 'NIST SP 800-53',      kind: vscode.QuickPickItemKind.Separator },
+  { label: 'NIST800-SA-11',       description: 'Developer Testing and Evaluation' },
+  { label: 'NIST800-CM-3',        description: 'Configuration Change Control' },
+  { label: 'NIST800-AU-12',       description: 'Audit Record Generation' },
+];
+
+async function showConsentDialog(ctx: vscode.ExtensionContext): Promise<boolean> {
+  const choice = await vscode.window.showInformationMessage(
+    'Tecsxpert Timer collects session metadata — project name, timestamps, git branch/commit hash, and any GRC controls you tag — and syncs it to your organisation\'s GRC tenant. ' +
+    'This data is used to generate audit evidence and is stored only on your tenant. ' +
+    'You can withdraw consent at any time by clearing your API key.',
+    { modal: true },
+    'I Consent',
+    'Cancel'
+  );
+  const consented = choice === 'I Consent';
+  await ctx.globalState.update('tecsxpert-timer.consentGiven', consented);
+  return consented;
+}
+
+async function pickControls(): Promise<string[] | undefined> {
+  const picks = await vscode.window.showQuickPick(GRC_CONTROLS, {
+    title: 'Tag GRC Controls (optional — Escape to skip)',
+    placeHolder: 'Select controls this session addresses',
+    canPickMany: true,
+    matchOnDescription: true,
+  });
+  if (!picks) { return undefined; }
+  return picks
+    .filter(p => p.kind !== vscode.QuickPickItemKind.Separator)
+    .map(p => p.label);
+}
+
 export function activate(ctx: vscode.ExtensionContext): void {
   const storage     = new StorageManager(ctx);
   const timer       = new TimerManager(storage);
@@ -54,8 +119,20 @@ export function activate(ctx: vscode.ExtensionContext): void {
       timer.getState() === 'paused' ? timer.start() : timer.pause();
     }),
 
-    vscode.commands.registerCommand('tecsxpert-timer.stop', () => {
-      timer.stop();
+    vscode.commands.registerCommand('tecsxpert-timer.stop', async () => {
+      if (timer.getState() === 'idle') { return; }
+
+      // Consent gate — one time per API key; re-shown if key changes
+      let consentGiven = ctx.globalState.get<boolean>('tecsxpert-timer.consentGiven', false);
+      if (!consentGiven && api.isConfigured()) {
+        consentGiven = await showConsentDialog(ctx);
+        if (!consentGiven) { return; }
+      }
+
+      // Control mapping picker — optional, Escape skips
+      const controlIds = await pickControls();
+
+      timer.stop({ controlIds: controlIds ?? [], consentGiven });
     }),
 
     vscode.commands.registerCommand('tecsxpert-timer.openDashboard', () => {
@@ -80,16 +157,34 @@ export function activate(ctx: vscode.ExtensionContext): void {
     }),
 
     vscode.commands.registerCommand('tecsxpert-timer.setApiKey', async () => {
+      const prevKey = vscode.workspace.getConfiguration('tecsxpert-timer').get<string>('apiKey', '');
       const key = await vscode.window.showInputBox({
         prompt: 'Tecsxpert API key',
         password: true,
         placeHolder: 'sk-txpert-…',
-        value: vscode.workspace.getConfiguration('tecsxpert-timer').get<string>('apiKey', ''),
+        value: prevKey,
       });
       if (key === undefined) { return; }
+
+      // Reset consent when API key changes (new tenant = new consent needed)
+      if (key !== prevKey) {
+        await ctx.globalState.update('tecsxpert-timer.consentGiven', false);
+      }
+
       await vscode.workspace.getConfiguration('tecsxpert-timer').update('apiKey', key, vscode.ConfigurationTarget.Global);
-      vscode.window.showInformationMessage(key ? 'API key saved. Syncing…' : 'API key cleared.');
-      if (key) { scheduleImmediateSync(api, storage); }
+
+      if (key) {
+        // Ask for consent upfront at API key setup time
+        const consented = await showConsentDialog(ctx);
+        if (consented) {
+          scheduleImmediateSync(api, storage);
+          vscode.window.showInformationMessage('API key saved. Syncing…');
+        } else {
+          vscode.window.showWarningMessage('API key saved but data sync is paused until you consent to data collection.');
+        }
+      } else {
+        vscode.window.showInformationMessage('API key cleared.');
+      }
       sidebar.refreshAccount();
     }),
 
@@ -98,6 +193,38 @@ export function activate(ctx: vscode.ExtensionContext): void {
       if (n === null)  { vscode.window.showWarningMessage('No API key — run "Set API Key" first.'); }
       else if (n === 0){ vscode.window.showInformationMessage('Nothing new to sync.'); }
       else             { vscode.window.showInformationMessage(`Synced ${n} session(s).`); }
+    }),
+
+    vscode.commands.registerCommand('tecsxpert-timer.exportEvidence', async () => {
+      if (!api.isConfigured()) {
+        vscode.window.showWarningMessage('No API key — run "Set API Key" first.');
+        return;
+      }
+      const formatPick = await vscode.window.showQuickPick(
+        [{ label: 'JSON', description: 'Structured evidence package' }, { label: 'CSV', description: 'Spreadsheet-compatible' }],
+        { title: 'Export Evidence Package — choose format' }
+      );
+      if (!formatPick) { return; }
+      const format = formatPick.label.toLowerCase() as 'json' | 'csv';
+
+      try {
+        const raw = await api.exportSessions(format);
+        const defaultName = `tecsxpert-evidence-${new Date().toISOString().slice(0,10)}.${format}`;
+        const uri = await vscode.window.showSaveDialog({
+          defaultUri: vscode.Uri.file(defaultName),
+          filters: format === 'csv' ? { 'CSV': ['csv'] } : { 'JSON': ['json'] },
+          title: 'Save Evidence Package',
+        });
+        if (!uri) { return; }
+        const content = typeof raw === 'string' ? raw : JSON.stringify(raw, null, 2);
+        await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf8'));
+        const open = await vscode.window.showInformationMessage(
+          `Evidence package saved: ${uri.fsPath}`, 'Open File'
+        );
+        if (open) { await vscode.commands.executeCommand('vscode.open', uri); }
+      } catch (err: any) {
+        vscode.window.showErrorMessage(`Export failed: ${err?.message ?? String(err)}`);
+      }
     }),
 
     // ── Integration commands ────────────────────────────────────────────────

@@ -63,6 +63,41 @@ export class ApiClient {
     });
   }
 
+  private requestRaw(method: string, path: string): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const url = new URL(this.baseUrl + path);
+      const isHttps = url.protocol === 'https:';
+      const { tenantId, sanctumToken } = parseGrcKey(this.apiKey);
+      const opts: http.RequestOptions = {
+        hostname: url.hostname,
+        port: url.port || (isHttps ? 443 : 80),
+        path: url.pathname + url.search,
+        method,
+        headers: {
+          'Authorization': `Bearer ${sanctumToken}`,
+          'Accept': 'text/csv, application/json',
+          ...(tenantId ? { 'X-Tenant-ID': tenantId } : {}),
+        },
+        timeout: 30000,
+      };
+      const lib = isHttps ? https : http;
+      const req = lib.request(opts, res => {
+        let data = '';
+        res.on('data', chunk => { data += chunk; });
+        res.on('end', () => {
+          if ((res.statusCode || 0) >= 200 && (res.statusCode || 0) < 300) {
+            resolve(data);
+          } else {
+            reject(new Error(`HTTP ${res.statusCode}: ${data}`));
+          }
+        });
+      });
+      req.on('error', reject);
+      req.on('timeout', () => { req.destroy(); reject(new Error('Request timed out')); });
+      req.end();
+    });
+  }
+
   isConfigured(): boolean {
     return this.apiKey.trim().length > 0;
   }
@@ -82,6 +117,14 @@ export class ApiClient {
     } catch {
       return null;
     }
+  }
+
+  async exportSessions(format: 'json' | 'csv' = 'json', from?: number, to?: number): Promise<string> {
+    if (!this.isConfigured()) { throw new Error('No API key configured'); }
+    const params = new URLSearchParams({ format });
+    if (from !== undefined) { params.set('from', String(from)); }
+    if (to   !== undefined) { params.set('to',   String(to)); }
+    return this.requestRaw('GET', `/api/dev-timer/sessions/export?${params}`);
   }
 
   async testConnection(): Promise<boolean> {
